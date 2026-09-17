@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using MailSweep.Api;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace MailSweep.Api.Tests;
 
@@ -10,11 +9,8 @@ public sealed class HealthEndpointTests
     [Fact]
     public async Task GetHealthReturnsHealthyApplicationStatus()
     {
-        using var factory = new WebApplicationFactory<Program>();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost")
-        });
+        using var factory = new MailSweepApiFactory();
+        using var client = factory.CreateHttpsClient();
         using var response = await client.GetAsync("/api/health");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
