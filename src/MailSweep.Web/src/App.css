@@ -27,7 +27,6 @@
 
 h1,
 h2,
-h3,
 p {
   margin: 0;
 }
@@ -84,8 +83,30 @@ button {
   padding: 12px 18px;
   border: 0;
   border-radius: 10px;
+  background: #14664e;
+  color: #fff;
+  cursor: pointer;
   font: inherit;
   font-weight: 600;
+}
+
+button:hover:not(:disabled) {
+  background: #0c503b;
+}
+
+button:focus-visible {
+  outline: 3px solid #77bca2;
+  outline-offset: 3px;
+}
+
+button.secondary-button {
+  border: 1px solid #b8d2c7;
+  background: #fff;
+  color: #14664e;
+}
+
+button.secondary-button:hover:not(:disabled) {
+  background: #eef7f2;
 }
 
 button:disabled {
@@ -94,13 +115,22 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.error-text,
+.profile-error {
+  color: #9f342d;
+}
+
+.error-text {
+  margin-top: 12px;
+}
+
 .overview {
   margin-top: 52px;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   margin: 24px 0 0;
 }
@@ -118,7 +148,27 @@ button:disabled {
 .stat-card dd {
   margin: 18px 0 0;
   color: #293a33;
+  font-size: 1.2rem;
   font-weight: 600;
+}
+
+.profile-error {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+button.text-button {
+  padding: 0;
+  background: transparent;
+  color: #14664e;
+  text-decoration: underline;
+}
+
+button.text-button:hover:not(:disabled) {
+  background: transparent;
+  color: #0c503b;
 }
 
 @media (max-width: 640px) {
@@ -138,5 +188,10 @@ button:disabled {
 
   .stat-card {
     min-height: auto;
+  }
+
+  .profile-error {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
