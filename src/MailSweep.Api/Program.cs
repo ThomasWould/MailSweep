@@ -49,6 +49,12 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Scope.Add("email");
         options.Scope.Add("profile");
         options.Scope.Add(GmailService.Scope.GmailReadonly);
+        options.Events.OnRemoteFailure = context =>
+        {
+            context.HandleResponse();
+            context.Response.Redirect($"{webOrigin}/?gmailConnected=false");
+            return Task.CompletedTask;
+        };
     });
 builder.Services.AddOptions<OpenIdConnectOptions>(GoogleOpenIdConnectDefaults.AuthenticationScheme)
     .Configure<IConfiguration>((options, configuration) =>
@@ -101,10 +107,19 @@ app.MapGet("/api/auth/status", (HttpContext context) =>
 });
 
 app.MapGet("/api/gmail/profile", async (HttpContext context, IGmailProfileService profileService,
+    ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
     context.Response.Headers.CacheControl = "no-store";
-    return TypedResults.Ok(await profileService.GetProfileAsync(cancellationToken));
+    try
+    {
+        return Results.Ok(await profileService.GetProfileAsync(cancellationToken));
+    }
+    catch (Exception exception) when (exception is Google.GoogleApiException or HttpRequestException or InvalidOperationException)
+    {
+        logger.LogWarning(exception, "Gmail profile request failed");
+        return Results.Problem(title: "Gmail profile unavailable", statusCode: StatusCodes.Status502BadGateway);
+    }
 }).RequireAuthorization();
 
 app.MapPost("/api/auth/logout", async (HttpContext context) =>
