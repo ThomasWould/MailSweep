@@ -1,0 +1,34 @@
+# .NET build output and local tooling
+**/bin/
+**/obj/
+**/TestResults/
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Frontend dependencies and build output
+**/node_modules/
+src/MailSweep.Web/dist/
+src/MailSweep.Web/dist-ssr/
+coverage/
+*.log
+
+# Local configuration and future credentials
+.env
+.env.*
+!.env.example
+**/appsettings.*.json
+**/appsettings.*.local.json
+**/secrets.json
+**/client_secret*.json
+**/credentials*.json
+**/token*.json
+*.pfx
+*.pem
+*.key
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
