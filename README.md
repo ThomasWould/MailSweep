@@ -98,6 +98,8 @@ Keep credentials and tokens out of the repository. The root `.gitignore` exclude
 
 The backend requires `Frontend:Origin` to be an HTTPS origin without a path, query, or fragment. Development uses `https://localhost:5173` from `appsettings.Development.json`. For another environment, set `Frontend__Origin=https://app.example.test` in its private environment configuration. This single value controls the credentialed CORS allowlist, logout origin check, and fixed OAuth return destinations. Production startup fails if it is absent or invalid.
 
+Production deployment should keep the frontend and API on the same HTTPS site or origin so the `SameSite=Lax` session cookie works as designed. A cross-site deployment requires a deliberate review of the cookie, SameSite, and CSRF architecture before use.
+
 OAuth handler logging is suppressed because its default failure logs can contain Google's untrusted error description. The browser receives only the fixed `denied` or `failed` status.
 
 The frontend defaults to `https://localhost:7119` for the API. To override it, copy `src/MailSweep.Web/.env.example` to `.env.local` and set `VITE_API_BASE_URL=https://api.example.test`. Vite environment values are public browser configuration; never place credentials in them.
