@@ -124,6 +124,14 @@ button:disabled {
   margin-top: 12px;
 }
 
+.auth-notice {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  color: #9f342d;
+}
+
 .overview {
   margin-top: 52px;
 }

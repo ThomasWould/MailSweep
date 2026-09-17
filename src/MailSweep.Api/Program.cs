@@ -9,12 +9,11 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 
 var builder = WebApplication.CreateBuilder(args);
 
-const string webOrigin = "http://localhost:5173";
 const string webCorsPolicy = "MailSweepWeb";
 
 builder.Services.AddOpenApi();
 builder.Services.AddCors(options => options.AddPolicy(webCorsPolicy, policy => policy
-    .WithOrigins(webOrigin)
+    .WithOrigins(FrontendOrigin.Read(builder.Configuration))
     .WithMethods("GET", "POST")
     .AllowAnyHeader()
     .AllowCredentials()));
@@ -24,7 +23,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.Name = "__Host-MailSweep";
         options.Cookie.HttpOnly = true;
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.Cookie.SameSite = SameSiteMode.None;
+        options.Cookie.SameSite = SameSiteMode.Lax;
         options.Cookie.Path = "/";
         options.ExpireTimeSpan = TimeSpan.FromHours(1);
         options.SlidingExpiration = false;
@@ -49,6 +48,20 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Scope.Add("email");
         options.Scope.Add("profile");
         options.Scope.Add(GmailService.Scope.GmailReadonly);
+        options.Events.OnRemoteFailure = context =>
+        {
+            context.HandleResponse();
+            var status = string.Equals(context.Request.Query["error"].ToString(), "access_denied",
+                StringComparison.Ordinal) ? "denied" : "failed";
+            context.Response.Redirect($"{FrontendOrigin.Read(builder.Configuration)}/?auth={status}");
+            return Task.CompletedTask;
+        };
+        options.Events.OnAuthenticationFailed = context =>
+        {
+            context.HandleResponse();
+            context.Response.Redirect($"{FrontendOrigin.Read(builder.Configuration)}/?auth=failed");
+            return Task.CompletedTask;
+        };
     });
 builder.Services.AddOptions<OpenIdConnectOptions>(GoogleOpenIdConnectDefaults.AuthenticationScheme)
     .Configure<IConfiguration>((options, configuration) =>
@@ -67,6 +80,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IGmailProfileService, GmailProfileService>();
 
 var app = builder.Build();
+var webOrigin = FrontendOrigin.Read(app.Configuration);
 
 if (app.Environment.IsDevelopment())
 {
@@ -87,7 +101,7 @@ app.MapGet("/api/health", () => TypedResults.Ok(new HealthResponse("healthy", "M
     .WithName("GetHealth");
 
 app.MapGet("/api/auth/google/connect", () => TypedResults.Challenge(
-    new AuthenticationProperties { RedirectUri = $"{webOrigin}/?gmailConnected=true" },
+    new AuthenticationProperties { RedirectUri = webOrigin },
     [GoogleOpenIdConnectDefaults.AuthenticationScheme]));
 
 app.MapGet("/api/auth/status", (HttpContext context) =>
@@ -104,7 +118,17 @@ app.MapGet("/api/gmail/profile", async (HttpContext context, IGmailProfileServic
     CancellationToken cancellationToken) =>
 {
     context.Response.Headers.CacheControl = "no-store";
-    return TypedResults.Ok(await profileService.GetProfileAsync(cancellationToken));
+    try
+    {
+        return Results.Ok(await profileService.GetProfileAsync(cancellationToken));
+    }
+    catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+    {
+        var reconnectRequired = GmailProfileFailure.RequiresReconnect(exception);
+        return Results.Json(
+            new GmailProfileErrorResponse(reconnectRequired ? "reconnect_required" : "temporarily_unavailable"),
+            statusCode: reconnectRequired ? StatusCodes.Status409Conflict : StatusCodes.Status503ServiceUnavailable);
+    }
 }).RequireAuthorization();
 
 app.MapPost("/api/auth/logout", async (HttpContext context) =>

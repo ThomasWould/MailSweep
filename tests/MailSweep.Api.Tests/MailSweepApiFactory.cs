@@ -17,8 +17,11 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace MailSweep.Api.Tests;
 
-internal sealed class MailSweepApiFactory : WebApplicationFactory<Program>
+internal sealed class MailSweepApiFactory(Exception? profileException = null) : WebApplicationFactory<Program>
 {
+    private int profileCallCount;
+    public int ProfileCallCount => profileCallCount;
+
     public HttpClient CreateHttpsClient() => CreateClient(new WebApplicationFactoryClientOptions
     {
         BaseAddress = new Uri("https://localhost:7119"),
@@ -32,7 +35,8 @@ internal sealed class MailSweepApiFactory : WebApplicationFactory<Program>
             new Dictionary<string, string?>
             {
                 ["Authentication:Google:ClientId"] = "test-client-id",
-                ["Authentication:Google:ClientSecret"] = "test-client-secret"
+                ["Authentication:Google:ClientSecret"] = "test-client-secret",
+                ["Frontend:Origin"] = "https://localhost:5173"
             }));
         builder.ConfigureTestServices(services =>
         {
@@ -43,7 +47,8 @@ internal sealed class MailSweepApiFactory : WebApplicationFactory<Program>
             }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
                 TestAuthenticationHandler.SchemeName, _ => { });
             services.RemoveAll<IGmailProfileService>();
-            services.AddScoped<IGmailProfileService, FakeGmailProfileService>();
+            services.AddScoped<IGmailProfileService>(_ => new FakeGmailProfileService(
+                profileException, () => Interlocked.Increment(ref profileCallCount)));
             services.PostConfigure<OpenIdConnectOptions>(
                 GoogleOpenIdConnectDefaults.AuthenticationScheme,
                 options => options.ConfigurationManager =
@@ -57,10 +62,15 @@ internal sealed class MailSweepApiFactory : WebApplicationFactory<Program>
         });
     }
 
-    private sealed class FakeGmailProfileService : IGmailProfileService
+    private sealed class FakeGmailProfileService(Exception? failure, Action onCall) : IGmailProfileService
     {
-        public Task<GmailProfileResponse> GetProfileAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new GmailProfileResponse("test@example.com", 123, 45));
+        public Task<GmailProfileResponse> GetProfileAsync(CancellationToken cancellationToken)
+        {
+            onCall();
+            return failure is null
+                ? Task.FromResult(new GmailProfileResponse("test@example.com", 123, 45))
+                : Task.FromException<GmailProfileResponse>(failure);
+        }
     }
 }
 

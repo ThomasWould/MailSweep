@@ -8,7 +8,15 @@ internal sealed class GmailProfileService(IGoogleAuthProvider authProvider) : IG
 {
     public async Task<GmailProfileResponse> GetProfileAsync(CancellationToken cancellationToken)
     {
-        var credential = await authProvider.GetCredentialAsync(cancellationToken: cancellationToken);
+        Google.Apis.Auth.OAuth2.GoogleCredential credential;
+        try
+        {
+            credential = await authProvider.GetCredentialAsync(cancellationToken: cancellationToken);
+        }
+        catch (InvalidOperationException exception) when (exception.InnerException is null)
+        {
+            throw new GmailCredentialMissingException();
+        }
         using var gmail = new GmailService(new BaseClientService.Initializer
         {
             HttpClientInitializer = credential,

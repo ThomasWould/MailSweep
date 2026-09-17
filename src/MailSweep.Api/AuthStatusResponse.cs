@@ -1,3 +1,3 @@
 namespace MailSweep.Api;
 
-public sealed record AuthStatusResponse(bool Connected, string? EmailAddress);
+public sealed record AuthStatusResponse(bool Authenticated, string? EmailAddress);

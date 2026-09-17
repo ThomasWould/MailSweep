@@ -19,6 +19,7 @@ coverage/
 .env.*
 !.env.example
 **/appsettings.*.json
+!src/MailSweep.Api/appsettings.Development.json
 **/appsettings.*.local.json
 **/secrets.json
 **/client_secret*.json
