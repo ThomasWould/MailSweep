@@ -17,7 +17,10 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace MailSweep.Api.Tests;
 
-internal sealed class MailSweepApiFactory(Exception? profileException = null) : WebApplicationFactory<Program>
+internal sealed class MailSweepApiFactory(
+    Exception? profileException = null,
+    string environmentName = "Testing",
+    GmailMetadataProbeResponse? metadataProbeResponse = null) : WebApplicationFactory<Program>
 {
     private int profileCallCount;
     public int ProfileCallCount => profileCallCount;
@@ -30,7 +33,7 @@ internal sealed class MailSweepApiFactory(Exception? profileException = null) : 
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(environmentName);
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
@@ -49,6 +52,11 @@ internal sealed class MailSweepApiFactory(Exception? profileException = null) : 
             services.RemoveAll<IGmailProfileService>();
             services.AddScoped<IGmailProfileService>(_ => new FakeGmailProfileService(
                 profileException, () => Interlocked.Increment(ref profileCallCount)));
+            if (metadataProbeResponse is not null)
+            {
+                services.RemoveAll<IGmailMetadataProbe>();
+                services.AddScoped<IGmailMetadataProbe>(_ => new FakeGmailMetadataProbe(metadataProbeResponse));
+            }
             services.PostConfigure<OpenIdConnectOptions>(
                 GoogleOpenIdConnectDefaults.AuthenticationScheme,
                 options => options.ConfigurationManager =
@@ -60,6 +68,12 @@ internal sealed class MailSweepApiFactory(Exception? profileException = null) : 
                             Issuer = "https://accounts.google.com"
                         }));
         });
+    }
+
+    private sealed class FakeGmailMetadataProbe(GmailMetadataProbeResponse response) : IGmailMetadataProbe
+    {
+        public Task<GmailMetadataProbeResponse> ProbeAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(response);
     }
 
     private sealed class FakeGmailProfileService(Exception? failure, Action onCall) : IGmailProfileService
