@@ -1,6 +1,10 @@
+using System.Net;
+using Google;
 using Google.Apis.Gmail.v1;
 using Google.Apis.Gmail.v1.Data;
+using Google.Apis.Requests;
 using MailSweep.Api.Gmail;
+using MailSweep.Api.Mailbox.Scanning;
 
 namespace MailSweep.Api.Tests;
 
@@ -24,7 +28,8 @@ public sealed class GmailMailboxScanSourceTests
         };
         var source = new GmailMailboxScanSource(client);
 
-        var page = await source.ListMessagePageAsync("larger:25M", "page-token", CancellationToken.None);
+        var page = await source.ListAsync(
+            new MailboxListRequest("larger:25M", "page-token"), CancellationToken.None);
 
         var request = Assert.IsType<GmailListMessagesRequest>(client.ListRequest);
         Assert.Equal("larger:25M", request.Query);
@@ -32,9 +37,8 @@ public sealed class GmailMailboxScanSourceTests
         Assert.Equal(500, request.MaxResults);
         Assert.False(request.IncludeSpamTrash);
         Assert.Equal("messages(id,threadId),nextPageToken,resultSizeEstimate", request.Fields);
-        Assert.Equal([new Mailbox.MailboxMessageReference("message-1", "thread-1")], page.Messages);
+        Assert.Equal(["message-1"], page.MessageIds);
         Assert.Equal("next-token", page.NextPageToken);
-        Assert.True(page.HasNextPage);
     }
 
     [Fact]
@@ -50,7 +54,7 @@ public sealed class GmailMailboxScanSourceTests
         };
         var source = new GmailMailboxScanSource(client);
 
-        var metadata = await source.GetMessageMetadataAsync("message-1", CancellationToken.None);
+        var metadata = await source.GetMetadataAsync("message-1", CancellationToken.None);
 
         var request = Assert.IsType<GmailGetMessageRequest>(client.GetRequest);
         Assert.Equal("message-1", request.MessageId);
@@ -59,11 +63,10 @@ public sealed class GmailMailboxScanSourceTests
         Assert.Equal("id,threadId,labelIds,internalDate,sizeEstimate,payload/headers", request.Fields);
         Assert.Equal("message-1", metadata.MessageId);
         Assert.Equal("thread-1", metadata.ThreadId);
-        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1_725_000_000_000), metadata.InternalDate);
-        Assert.Equal(27_000_000, metadata.EstimatedSizeBytes);
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1_725_000_000_000), metadata.ReceivedAt);
+        Assert.Equal(27_000_000, metadata.EstimatedBytes);
         Assert.Equal(["INBOX", "IMPORTANT"], metadata.Labels);
-        Assert.Equal("Example Sender <sender@example.com>", metadata.FromHeader);
-        Assert.Equal("sender@example.com", metadata.SenderEmail);
+        Assert.Equal("Example Sender <sender@example.com>", metadata.From);
         Assert.Equal("Monthly update", metadata.Subject);
     }
 
@@ -76,9 +79,9 @@ public sealed class GmailMailboxScanSourceTests
         };
 
         var metadata = await new GmailMailboxScanSource(client)
-            .GetMessageMetadataAsync("message-1", CancellationToken.None);
+            .GetMetadataAsync("message-1", CancellationToken.None);
 
-        Assert.Null(metadata.InternalDate);
+        Assert.Null(metadata.ReceivedAt);
     }
 
     [Fact]
@@ -90,26 +93,9 @@ public sealed class GmailMailboxScanSourceTests
         };
 
         var metadata = await new GmailMailboxScanSource(client)
-            .GetMessageMetadataAsync("message-1", CancellationToken.None);
+            .GetMetadataAsync("message-1", CancellationToken.None);
 
-        Assert.Null(metadata.EstimatedSizeBytes);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("bad@@example.com")]
-    public async Task MissingOrMalformedFromDoesNotInventSender(string? from)
-    {
-        var client = new FakeGmailMessageApiClient
-        {
-            MessageResponse = CreateMessage(1_725_000_000_000, 100, from, null)
-        };
-
-        var metadata = await new GmailMailboxScanSource(client)
-            .GetMessageMetadataAsync("message-1", CancellationToken.None);
-
-        Assert.Null(metadata.SenderEmail);
+        Assert.Null(metadata.EstimatedBytes);
     }
 
     [Fact]
@@ -121,7 +107,7 @@ public sealed class GmailMailboxScanSourceTests
         };
 
         var metadata = await new GmailMailboxScanSource(client)
-            .GetMessageMetadataAsync("message-1", CancellationToken.None);
+            .GetMetadataAsync("message-1", CancellationToken.None);
 
         Assert.Null(metadata.Subject);
     }
@@ -135,8 +121,53 @@ public sealed class GmailMailboxScanSourceTests
         var source = new GmailMailboxScanSource(client);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            source.ListMessagePageAsync("in:inbox", null, cancellation.Token));
+            source.ListAsync(new MailboxListRequest("in:inbox", null), cancellation.Token));
         Assert.Equal(cancellation.Token, client.LastCancellationToken);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, null, MailboxSourceFailure.Authentication)]
+    [InlineData(HttpStatusCode.Forbidden, "authError", MailboxSourceFailure.Authentication)]
+    [InlineData(HttpStatusCode.Forbidden, "insufficientPermissions", MailboxSourceFailure.Permission)]
+    [InlineData(HttpStatusCode.Forbidden, "userRateLimitExceeded", MailboxSourceFailure.Transient)]
+    [InlineData(HttpStatusCode.TooManyRequests, null, MailboxSourceFailure.Transient)]
+    [InlineData(HttpStatusCode.InternalServerError, null, MailboxSourceFailure.Transient)]
+    [InlineData(HttpStatusCode.NotFound, null, MailboxSourceFailure.Unavailable)]
+    [InlineData(HttpStatusCode.BadRequest, null, MailboxSourceFailure.InvalidRequest)]
+    public async Task MapsGoogleFailuresIntoEngineFailureModel(
+        HttpStatusCode status,
+        string? reason,
+        MailboxSourceFailure expected)
+    {
+        var error = new GoogleApiException("Gmail")
+        {
+            HttpStatusCode = status,
+            Error = reason is null ? null : new RequestError
+            {
+                Errors = [new SingleError { Reason = reason }]
+            }
+        };
+        var source = new GmailMailboxScanSource(new FakeGmailMessageApiClient { ListException = error });
+
+        var thrown = await Assert.ThrowsAsync<MailboxSourceException>(() =>
+            source.ListAsync(new MailboxListRequest("in:inbox", null), CancellationToken.None));
+
+        Assert.Equal(expected, thrown.Failure);
+        Assert.Equal("Mailbox source request failed.", thrown.Message);
+    }
+
+    [Fact]
+    public async Task MapsHttpTimeoutToTransientWithoutMaskingCallerCancellation()
+    {
+        var source = new GmailMailboxScanSource(new FakeGmailMessageApiClient
+        {
+            ListException = new TaskCanceledException("HTTP timeout")
+        });
+
+        var thrown = await Assert.ThrowsAsync<MailboxSourceException>(() =>
+            source.ListAsync(new MailboxListRequest("in:inbox", null), CancellationToken.None));
+
+        Assert.Equal(MailboxSourceFailure.Transient, thrown.Failure);
     }
 
     private static Message CreateMessage(
@@ -173,6 +204,8 @@ internal sealed class FakeGmailMessageApiClient : IGmailMessageApiClient
     public ListMessagesResponse ListResponse { get; init; } = new();
     public Message MessageResponse { get; init; } = new();
     public bool HonorCancellation { get; init; }
+    public Exception? ListException { get; init; }
+    public Exception? GetException { get; init; }
     public GmailListMessagesRequest? ListRequest { get; private set; }
     public GmailGetMessageRequest? GetRequest { get; private set; }
     public CancellationToken LastCancellationToken { get; private set; }
@@ -183,6 +216,8 @@ internal sealed class FakeGmailMessageApiClient : IGmailMessageApiClient
     {
         ListRequest = request;
         LastCancellationToken = cancellationToken;
+        if (ListException is not null)
+            return Task.FromException<ListMessagesResponse>(ListException);
         return HonorCancellation
             ? Task.FromCanceled<ListMessagesResponse>(cancellationToken)
             : Task.FromResult(ListResponse);
@@ -194,6 +229,8 @@ internal sealed class FakeGmailMessageApiClient : IGmailMessageApiClient
     {
         GetRequest = request;
         LastCancellationToken = cancellationToken;
+        if (GetException is not null)
+            return Task.FromException<Message>(GetException);
         return HonorCancellation
             ? Task.FromCanceled<Message>(cancellationToken)
             : Task.FromResult(MessageResponse);

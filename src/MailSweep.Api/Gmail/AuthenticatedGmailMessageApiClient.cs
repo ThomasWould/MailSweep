@@ -13,6 +13,21 @@ internal sealed class AuthenticatedGmailMessageApiClient(IGoogleAuthProvider aut
     private readonly SemaphoreSlim serviceLock = new(1, 1);
     private GmailService? gmailService;
 
+    private AuthenticatedGmailMessageApiClient(GmailService gmailService) :
+        this((IGoogleAuthProvider)null!)
+    {
+        this.gmailService = gmailService;
+    }
+
+    internal static async Task<AuthenticatedGmailMessageApiClient> CreateForBackgroundScanAsync(
+        IGoogleAuthProvider authProvider,
+        TimeSpan requiredLifetime,
+        CancellationToken cancellationToken)
+    {
+        var credential = await GetCredentialAsync(authProvider, requiredLifetime, cancellationToken);
+        return new AuthenticatedGmailMessageApiClient(CreateService(credential));
+    }
+
     public async Task<ListMessagesResponse> ListMessagesAsync(
         GmailListMessagesRequest request,
         CancellationToken cancellationToken)
@@ -60,23 +75,8 @@ internal sealed class AuthenticatedGmailMessageApiClient(IGoogleAuthProvider aut
                 return gmailService;
             }
 
-            Google.Apis.Auth.OAuth2.GoogleCredential credential;
-            try
-            {
-                credential = await authProvider.GetCredentialAsync(cancellationToken: cancellationToken);
-            }
-            catch (InvalidOperationException exception) when (exception.InnerException is null)
-            {
-                throw new GmailCredentialMissingException();
-            }
-
-            gmailService = new GmailService(new BaseClientService.Initializer
-            {
-                HttpClientInitializer = credential,
-                ApplicationName = "MailSweep",
-                // Retry accounting belongs to the bounded scan engine; do not hide attempts here.
-                DefaultExponentialBackOffPolicy = ExponentialBackOffPolicy.None
-            });
+            var credential = await GetCredentialAsync(authProvider, null, cancellationToken);
+            gmailService = CreateService(credential);
             return gmailService;
         }
         finally
@@ -84,4 +84,28 @@ internal sealed class AuthenticatedGmailMessageApiClient(IGoogleAuthProvider aut
             serviceLock.Release();
         }
     }
+
+    private static async Task<Google.Apis.Auth.OAuth2.GoogleCredential> GetCredentialAsync(
+        IGoogleAuthProvider provider,
+        TimeSpan? requiredLifetime,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await provider.GetCredentialAsync(requiredLifetime, cancellationToken);
+        }
+        catch (InvalidOperationException exception) when (exception.InnerException is null)
+        {
+            throw new GmailCredentialMissingException();
+        }
+    }
+
+    private static GmailService CreateService(Google.Apis.Auth.OAuth2.GoogleCredential credential) =>
+        new(new BaseClientService.Initializer
+        {
+            HttpClientInitializer = credential,
+            ApplicationName = "MailSweep",
+            // Retry accounting belongs to the bounded scan engine; do not hide attempts here.
+            DefaultExponentialBackOffPolicy = ExponentialBackOffPolicy.None
+        });
 }

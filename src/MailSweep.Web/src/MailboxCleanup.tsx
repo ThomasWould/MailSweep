@@ -28,7 +28,8 @@ function readableDate(value: string): string {
 
 function statusReason(reason: string | null | undefined): string {
   switch (reason) {
-    case 'gmail_temporarily_unavailable': return 'Gmail is temporarily unavailable. No email was changed.'
+    case 'gmail_temporarily_unavailable':
+    case 'source_unavailable': return 'Gmail is temporarily unavailable. No email was changed.'
     case 'authentication_required': return 'Your Gmail connection needs to be refreshed before another analysis.'
     default: return 'The analysis could not be completed right now. No email was changed.'
   }

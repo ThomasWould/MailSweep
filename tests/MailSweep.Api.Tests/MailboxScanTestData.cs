@@ -40,6 +40,7 @@ internal sealed class FakeScanSource : IMailboxScanSource
         (_, _) => Task.FromResult(new MailboxIdPage([], null));
     public Func<string, CancellationToken, Task<MailboxMessageMetadata>> Get { get; set; } =
         (id, _) => Task.FromResult(ScanHarness.Metadata(id));
+    public bool Disposed { get; private set; }
 
     public void Cohorts(string[] large, string[]? promotions = null, string[]? unread = null) =>
         List = (request, _) => Task.FromResult(new MailboxIdPage(
@@ -59,4 +60,6 @@ internal sealed class FakeScanSource : IMailboxScanSource
         Gets.Add(id);
         return Get(id, cancellationToken);
     }
+
+    public void Dispose() => Disposed = true;
 }

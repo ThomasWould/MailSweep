@@ -24,8 +24,10 @@ function App() {
     ? { kind: 'connected', profile: { emailAddress: 'demo@mailsweep.local', messagesTotal: 72_640, threadsTotal: 67_185 } }
     : { kind: 'loading' })
   const [mockScenario, setMockScenario] = useState<MockScanScenario>('promotions-truncated')
-  const mockScanClient = useMemo(() => createMockMailboxScanClient(() => mockScenario), [mockScenario])
-  const scanClient = mockScannerEnabled ? mockScanClient : liveScanClient
+  const mockScanClient = useMemo(() => mockScannerEnabled
+    ? createMockMailboxScanClient(() => mockScenario)
+    : null, [mockScenario])
+  const scanClient = mockScanClient ?? liveScanClient
   const [statusAttempt, setStatusAttempt] = useState(0)
   const [profileAttempt, setProfileAttempt] = useState(0)
   const [disconnecting, setDisconnecting] = useState(false)

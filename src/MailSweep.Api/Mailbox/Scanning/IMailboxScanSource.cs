@@ -5,10 +5,12 @@ namespace MailSweep.Api.Mailbox.Scanning;
 /// Implementations must honor cancellation and return metadata only (never bodies).
 /// The caller owns the source and its credentials for the entire job lifetime.
 /// </summary>
-public interface IMailboxScanSource
+public interface IMailboxScanSource : IDisposable
 {
     Task<MailboxIdPage> ListAsync(MailboxListRequest request, CancellationToken cancellationToken);
     Task<MailboxMessageMetadata> GetMetadataAsync(string messageId, CancellationToken cancellationToken);
+
+    void IDisposable.Dispose() { }
 }
 
 public sealed record MailboxListRequest(string Query, string? PageToken, int MaxResults = 500,

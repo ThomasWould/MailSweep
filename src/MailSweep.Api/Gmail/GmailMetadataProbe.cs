@@ -28,9 +28,9 @@ internal sealed class GmailMetadataProbe(IGmailMessageApiClient client) : IGmail
         var metadata = GmailMailboxScanSource.MapMetadata(message, messageId);
         return new GmailMetadataProbeResponse(
             true,
-            metadata.InternalDate is not null,
-            metadata.EstimatedSizeBytes is not null,
-            metadata.FromHeader is not null,
+            metadata.ReceivedAt is not null,
+            metadata.EstimatedBytes is not null,
+            metadata.From is not null,
             metadata.Subject is not null);
     }
 }

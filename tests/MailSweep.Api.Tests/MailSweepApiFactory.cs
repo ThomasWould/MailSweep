@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Google.Apis.Auth.AspNetCore3;
 using MailSweep.Api.Gmail;
+using MailSweep.Api.Mailbox.Scanning;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -20,7 +21,8 @@ namespace MailSweep.Api.Tests;
 internal sealed class MailSweepApiFactory(
     Exception? profileException = null,
     string environmentName = "Testing",
-    GmailMetadataProbeResponse? metadataProbeResponse = null) : WebApplicationFactory<Program>
+    GmailMetadataProbeResponse? metadataProbeResponse = null,
+    Func<IMailboxScanSource>? scanSourceFactory = null) : WebApplicationFactory<Program>
 {
     private int profileCallCount;
     public int ProfileCallCount => profileCallCount;
@@ -52,6 +54,9 @@ internal sealed class MailSweepApiFactory(
             services.RemoveAll<IGmailProfileService>();
             services.AddScoped<IGmailProfileService>(_ => new FakeGmailProfileService(
                 profileException, () => Interlocked.Increment(ref profileCallCount)));
+            services.RemoveAll<IGmailMailboxScanSourceFactory>();
+            services.AddScoped<IGmailMailboxScanSourceFactory>(_ => new FakeGmailMailboxScanSourceFactory(
+                scanSourceFactory ?? (() => new FakeScanSource())));
             if (metadataProbeResponse is not null)
             {
                 services.RemoveAll<IGmailMetadataProbe>();
@@ -74,6 +79,16 @@ internal sealed class MailSweepApiFactory(
     {
         public Task<GmailMetadataProbeResponse> ProbeAsync(CancellationToken cancellationToken) =>
             Task.FromResult(response);
+    }
+
+    private sealed class FakeGmailMailboxScanSourceFactory(Func<IMailboxScanSource> create) :
+        IGmailMailboxScanSourceFactory
+    {
+        public Task<IMailboxScanSource> CreateAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(create());
+        }
     }
 
     private sealed class FakeGmailProfileService(Exception? failure, Action onCall) : IGmailProfileService
@@ -104,7 +119,10 @@ internal sealed class TestAuthenticationHandler(
         }
 
         var identity = new ClaimsIdentity(
-            [new Claim(ClaimTypes.Email, email.ToString())], Scheme.Name);
+            [
+                new Claim(ClaimTypes.NameIdentifier, email.ToString()),
+                new Claim(ClaimTypes.Email, email.ToString())
+            ], Scheme.Name);
         var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name);
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }

@@ -1,7 +1,8 @@
-using System.Net.Mail;
+using System.Net;
+using Google;
 using Google.Apis.Gmail.v1;
 using Google.Apis.Gmail.v1.Data;
-using MailSweep.Api.Mailbox;
+using MailSweep.Api.Mailbox.Scanning;
 
 namespace MailSweep.Api.Gmail;
 
@@ -11,35 +12,60 @@ internal sealed class GmailMailboxScanSource(IGmailMessageApiClient client) : IM
     internal const string MetadataFields =
         "id,threadId,labelIds,internalDate,sizeEstimate,payload/headers";
 
-    public async Task<MailboxMessagePage> ListMessagePageAsync(
-        string query,
-        string? pageToken,
+    public async Task<MailboxIdPage> ListAsync(
+        MailboxListRequest request,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(query);
-
-        var request = new GmailListMessagesRequest(
-            query,
-            NormalizeOptionalValue(pageToken),
-            MaxResults: 500,
-            IncludeSpamTrash: false,
-            ListFields);
-        var response = await client.ListMessagesAsync(request, cancellationToken);
-        var messages = response.Messages?
-            .Where(message => !string.IsNullOrWhiteSpace(message.Id))
-            .Select(message => new MailboxMessageReference(message.Id, message.ThreadId))
-            .ToArray() ?? [];
-
-        return new MailboxMessagePage(messages, NormalizeOptionalValue(response.NextPageToken));
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Query);
+        try
+        {
+            var response = await client.ListMessagesAsync(new GmailListMessagesRequest(
+                request.Query,
+                NormalizeOptionalValue(request.PageToken),
+                request.MaxResults,
+                request.IncludeSpamTrash,
+                ListFields), cancellationToken);
+            var ids = response.Messages?
+                .Select(message => message.Id)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Cast<string>()
+                .ToArray() ?? [];
+            return new MailboxIdPage(ids, NormalizeOptionalValue(response.NextPageToken));
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new MailboxSourceException(MailboxSourceFailure.Transient);
+        }
+        catch (Exception exception) when (TryMapFailure(exception, out var failure))
+        {
+            throw new MailboxSourceException(failure);
+        }
     }
 
-    public async Task<MailboxMessageMetadata> GetMessageMetadataAsync(
+    public async Task<MailboxMessageMetadata> GetMetadataAsync(
         string messageId,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
-        var message = await client.GetMessageAsync(CreateMetadataRequest(messageId), cancellationToken);
-        return MapMetadata(message, messageId);
+        try
+        {
+            var message = await client.GetMessageAsync(CreateMetadataRequest(messageId), cancellationToken);
+            return MapMetadata(message, messageId);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new MailboxSourceException(MailboxSourceFailure.Transient);
+        }
+        catch (Exception exception) when (TryMapFailure(exception, out var failure))
+        {
+            throw new MailboxSourceException(failure);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (client is IDisposable disposable)
+            disposable.Dispose();
     }
 
     internal static GmailGetMessageRequest CreateMetadataRequest(string messageId) => new(
@@ -48,20 +74,65 @@ internal sealed class GmailMailboxScanSource(IGmailMessageApiClient client) : IM
         ["From", "Subject"],
         MetadataFields);
 
-    internal static MailboxMessageMetadata MapMetadata(Message message, string requestedMessageId)
-    {
-        var fromHeader = FindHeader(message, "From");
-        var subject = FindHeader(message, "Subject");
+    internal static MailboxMessageMetadata MapMetadata(Message message, string requestedMessageId) => new(
+        string.IsNullOrWhiteSpace(message.Id) ? requestedMessageId : message.Id,
+        NormalizeOptionalValue(message.ThreadId) ?? string.Empty,
+        ParseInternalDate(message.InternalDate),
+        message.SizeEstimate,
+        message.LabelIds?.Where(label => !string.IsNullOrWhiteSpace(label)).ToArray() ?? [],
+        FindHeader(message, "From"),
+        FindHeader(message, "Subject"));
 
-        return new MailboxMessageMetadata(
-            string.IsNullOrWhiteSpace(message.Id) ? requestedMessageId : message.Id,
-            NormalizeOptionalValue(message.ThreadId),
-            ParseInternalDate(message.InternalDate),
-            message.SizeEstimate,
-            message.LabelIds?.Where(label => !string.IsNullOrWhiteSpace(label)).ToArray() ?? [],
-            fromHeader,
-            ParseSenderEmail(fromHeader),
-            subject);
+    internal static bool TryMapFailure(Exception exception, out MailboxSourceFailure failure)
+    {
+        if (exception is GmailCredentialMissingException)
+        {
+            failure = MailboxSourceFailure.Authentication;
+            return true;
+        }
+
+        if (exception is HttpRequestException requestException)
+        {
+            failure = requestException.StatusCode switch
+            {
+                HttpStatusCode.BadRequest => MailboxSourceFailure.InvalidRequest,
+                HttpStatusCode.Unauthorized => MailboxSourceFailure.Authentication,
+                HttpStatusCode.Forbidden => MailboxSourceFailure.Permission,
+                HttpStatusCode.NotFound => MailboxSourceFailure.Unavailable,
+                HttpStatusCode.TooManyRequests => MailboxSourceFailure.Transient,
+                >= HttpStatusCode.InternalServerError => MailboxSourceFailure.Transient,
+                _ when requestException.StatusCode is null => MailboxSourceFailure.Transient,
+                _ => MailboxSourceFailure.InvalidRequest
+            };
+            return true;
+        }
+
+        if (exception is GoogleApiException apiException)
+        {
+            var reasons = apiException.Error?.Errors?
+                .Select(error => error.Reason)
+                .Where(reason => !string.IsNullOrWhiteSpace(reason))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+            failure = apiException.HttpStatusCode switch
+            {
+                HttpStatusCode.BadRequest => MailboxSourceFailure.InvalidRequest,
+                HttpStatusCode.Unauthorized => MailboxSourceFailure.Authentication,
+                HttpStatusCode.Forbidden when reasons.Overlaps(
+                    ["rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded"]) =>
+                    MailboxSourceFailure.Transient,
+                HttpStatusCode.Forbidden when reasons.Contains("authError") =>
+                    MailboxSourceFailure.Authentication,
+                HttpStatusCode.Forbidden => MailboxSourceFailure.Permission,
+                HttpStatusCode.NotFound => MailboxSourceFailure.Unavailable,
+                HttpStatusCode.TooManyRequests => MailboxSourceFailure.Transient,
+                >= HttpStatusCode.InternalServerError => MailboxSourceFailure.Transient,
+                _ => MailboxSourceFailure.InvalidRequest
+            };
+            return true;
+        }
+
+        failure = default;
+        return false;
     }
 
     private static string? FindHeader(Message message, string name) => message.Payload?.Headers?
@@ -71,9 +142,7 @@ internal sealed class GmailMailboxScanSource(IGmailMessageApiClient client) : IM
     private static DateTimeOffset? ParseInternalDate(long? unixMilliseconds)
     {
         if (unixMilliseconds is null)
-        {
             return null;
-        }
 
         try
         {
@@ -83,16 +152,6 @@ internal sealed class GmailMailboxScanSource(IGmailMessageApiClient client) : IM
         {
             return null;
         }
-    }
-
-    private static string? ParseSenderEmail(string? fromHeader)
-    {
-        if (string.IsNullOrWhiteSpace(fromHeader) || !MailAddress.TryCreate(fromHeader, out var address))
-        {
-            return null;
-        }
-
-        return address.Address;
     }
 
     private static string? NormalizeOptionalValue(string? value) =>

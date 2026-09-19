@@ -27,6 +27,7 @@ public sealed class MailboxScanService : IAsyncDisposable
 
     // profileMessageCount is supplied by the integration layer; no profile/API/OAuth dependency here.
     // Do not use an HTTP request-aborted token for the job lifetime.
+    // Ownership of source transfers to the service after a successful call.
     public MailboxScanProgress Start(string accountId, IMailboxScanSource source, long profileMessageCount)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
@@ -85,14 +86,18 @@ public sealed class MailboxScanService : IAsyncDisposable
 
     private async Task ExecuteAsync(Job job, IMailboxScanSource source, long profileCount)
     {
-        await Task.Yield(); // Start returns promptly; no Task.Run and no blocking worker thread.
-        var outcome = await engine.RunAsync(job.Progress.ScanId, source, profileCount,
-            progress =>
-            {
-                // Publish terminal status together with its result below, as one atomic update.
-                if (progress.Status == MailboxScanStatus.Running)
-                    lock (gate) job.Progress = progress;
-            }, job.Cancellation.Token);
+        MailboxScanOutcome outcome;
+        using (source)
+        {
+            await Task.Yield(); // Start returns promptly; no Task.Run and no blocking worker thread.
+            outcome = await engine.RunAsync(job.Progress.ScanId, source, profileCount,
+                progress =>
+                {
+                    // Publish terminal status together with its result below, as one atomic update.
+                    if (progress.Status == MailboxScanStatus.Running)
+                        lock (gate) job.Progress = progress;
+                }, job.Cancellation.Token);
+        }
         lock (gate)
         {
             job.Progress = outcome.Progress;
