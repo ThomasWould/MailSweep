@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
+import MailboxCleanup from './MailboxCleanup.tsx'
+import { createMailboxScanClient } from './mailboxScan/api.ts'
+import { createMockMailboxScanClient, type MockScanScenario } from './mailboxScan/mock.ts'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'https://localhost:7119').replace(/\/$/, '')
 const numberFormatter = new Intl.NumberFormat()
+const mockScannerEnabled = import.meta.env.DEV && import.meta.env.VITE_MAILBOX_SCAN_MOCK === 'true'
+const liveScanClient = createMailboxScanClient(apiBaseUrl)
 
 type AuthStatus = { authenticated: boolean; emailAddress: string | null }
 type GmailProfile = { emailAddress: string; messagesTotal: number; threadsTotal: number }
@@ -15,7 +20,12 @@ type ConnectionState =
   | { kind: 'error'; stage: 'status' | 'profile'; emailAddress?: string }
 
 function App() {
-  const [connection, setConnection] = useState<ConnectionState>({ kind: 'loading' })
+  const [connection, setConnection] = useState<ConnectionState>(() => mockScannerEnabled
+    ? { kind: 'connected', profile: { emailAddress: 'demo@mailsweep.local', messagesTotal: 72_640, threadsTotal: 67_185 } }
+    : { kind: 'loading' })
+  const [mockScenario, setMockScenario] = useState<MockScanScenario>('promotions-truncated')
+  const mockScanClient = useMemo(() => createMockMailboxScanClient(() => mockScenario), [mockScenario])
+  const scanClient = mockScannerEnabled ? mockScanClient : liveScanClient
   const [statusAttempt, setStatusAttempt] = useState(0)
   const [profileAttempt, setProfileAttempt] = useState(0)
   const [disconnecting, setDisconnecting] = useState(false)
@@ -36,6 +46,7 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (mockScannerEnabled) return
     const controller = new AbortController()
     async function loadStatus() {
       try {
@@ -61,6 +72,7 @@ function App() {
   }, [statusAttempt])
 
   useEffect(() => {
+    if (mockScannerEnabled) return
     if (connection.kind !== 'checking') return
     const emailAddress = connection.emailAddress
     const controller = new AbortController()
@@ -155,7 +167,7 @@ function App() {
             {connection.kind === 'connected' && (
               <>
                 <h2 id="connection-heading">Connected to {connection.profile.emailAddress}</h2>
-                <p className="supporting-text">MailSweep has read-only Gmail access.</p>
+                <p className="supporting-text">{mockScannerEnabled ? 'Development mock mode — no Gmail connection is used.' : 'MailSweep has read-only Gmail access.'}</p>
               </>
             )}
             {connection.kind === 'reconnect' && (
@@ -180,7 +192,7 @@ function App() {
           </div>
           {connection.kind === 'disconnected' && <button type="button" onClick={connectGmail}>Connect Gmail</button>}
           {connection.kind === 'reconnect' && <button type="button" onClick={connectGmail}>Reconnect Gmail</button>}
-          {connection.kind === 'connected' && (
+          {connection.kind === 'connected' && !mockScannerEnabled && (
             <button type="button" className="secondary-button" onClick={disconnectGmail} disabled={disconnecting}>
               {disconnecting ? 'Disconnecting…' : 'Disconnect'}
             </button>
@@ -205,6 +217,13 @@ function App() {
             </div>
           </dl>
         </section>
+        {connectedProfile && (
+          <MailboxCleanup
+            client={scanClient}
+            mockScenario={mockScannerEnabled ? mockScenario : undefined}
+            onMockScenarioChange={mockScannerEnabled ? setMockScenario : undefined}
+          />
+        )}
       </main>
     </div>
   )
