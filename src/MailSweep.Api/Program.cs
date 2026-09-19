@@ -3,6 +3,7 @@ using Google.Apis.Auth.AspNetCore3;
 using Google.Apis.Gmail.v1;
 using MailSweep.Api;
 using MailSweep.Api.Gmail;
+using MailSweep.Api.Mailbox;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -78,6 +79,9 @@ builder.Services.AddOptions<OpenIdConnectOptions>(GoogleOpenIdConnectDefaults.Au
     });
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<IGmailProfileService, GmailProfileService>();
+builder.Services.AddScoped<IGmailMessageApiClient, AuthenticatedGmailMessageApiClient>();
+builder.Services.AddScoped<IMailboxScanSource, GmailMailboxScanSource>();
+builder.Services.AddScoped<IGmailMetadataProbe, GmailMetadataProbe>();
 
 var app = builder.Build();
 var webOrigin = FrontendOrigin.Read(app.Configuration);
@@ -85,6 +89,27 @@ var webOrigin = FrontendOrigin.Read(app.Configuration);
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapGet("/api/dev/gmail/metadata-probe", async (
+        HttpContext context,
+        IGmailMetadataProbe probe,
+        CancellationToken cancellationToken) =>
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        try
+        {
+            return Results.Ok(await probe.ProbeAsync(cancellationToken));
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            var reconnectRequired = GmailProfileFailure.RequiresReconnect(exception);
+            return Results.Json(
+                new GmailProfileErrorResponse(
+                    reconnectRequired ? "reconnect_required" : "temporarily_unavailable"),
+                statusCode: reconnectRequired
+                    ? StatusCodes.Status409Conflict
+                    : StatusCodes.Status503ServiceUnavailable);
+        }
+    }).RequireAuthorization();
 }
 else
 {
