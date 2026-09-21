@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MailboxScanClient, MailboxScanCohort, MailboxScanProgress, MailboxScanSummary } from './mailboxScan/contracts.ts'
-import { cohortLabels, enumeratedCohortCount, enumerationLabel, formatBytes, observedCountLabel } from './mailboxScan/display.ts'
+import {
+  cohortLabels,
+  enumeratedCohortCount,
+  enumerationLabel,
+  formatBytes,
+  observedCountLabel,
+  promotionCoverageLabel,
+  promotionDomainRows,
+  promotionMessageCountLabel,
+  promotionSenderRows,
+} from './mailboxScan/display.ts'
 import type { MockScanScenario } from './mailboxScan/mock.ts'
 
 const numberFormatter = new Intl.NumberFormat()
@@ -107,6 +117,9 @@ export default function MailboxCleanup({ client, mockScenario, onMockScenarioCha
     cohort, enumerationStatus: 'notStarted' as const, pagesEnumerated: 0, observedCandidateCount: 0,
     enrichedMessages: 0, estimatedMatchingMessageBytes: 0, countComplete: false,
   })
+  const promotionInsights = view.kind === 'completed' ? view.summary.promotionInsights : undefined
+  const senderInsights = promotionInsights ? promotionSenderRows(promotionInsights) : []
+  const domainInsights = promotionInsights ? promotionDomainRows(promotionInsights) : []
 
   return (
     <section className="cleanup" aria-labelledby="cleanup-heading">
@@ -216,6 +229,48 @@ export default function MailboxCleanup({ client, mockScenario, onMockScenarioCha
             <h3>What this scan covered</h3>
             <p>MailSweep checked three bounded search cohorts and analyzed {numberFormatter.format(view.summary.getSucceeded)} examples using {view.summary.getAttemptsUsed} of {view.summary.getAttemptBudget} metadata attempts. {view.summary.limitedByBudget ? 'At least one result count was limited by the scan bounds.' : 'All three observed candidate counts completed within the scan bounds.'} This is not an exhaustive mailbox inventory.</p>
           </div>
+          {promotionInsights && (
+            <section className="promotion-insights" aria-labelledby="promotion-insights-heading">
+              <div className="promotion-insights-heading">
+                <div>
+                  <p className="eyebrow">Bounded-scan sample</p>
+                  <h3 id="promotion-insights-heading">Promotion Insights</h3>
+                </div>
+                <p>{formatBytes(promotionInsights.analyzedMessageBytes)} analyzed</p>
+              </div>
+              <p className="promotion-coverage">
+                {promotionCoverageLabel(promotionInsights)} This is not a mailbox-wide sender ranking.
+              </p>
+              {promotionInsights.analyzedMessageCount > 0 ? (
+                <div className="promotion-rankings">
+                  <article>
+                    <h4>Frequent senders</h4>
+                    <ol className="insight-list">
+                      {senderInsights.map((sender) => (
+                        <li key={sender.key}>
+                          <span><strong>{sender.label}</strong>{sender.detail && <small>{sender.detail}</small>}</span>
+                          <span>{promotionMessageCountLabel(sender.messageCount)} · {formatBytes(sender.estimatedBytes)}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </article>
+                  <article>
+                    <h4>Frequent domains</h4>
+                    {domainInsights.length > 0 ? (
+                      <ol className="insight-list">
+                        {domainInsights.map((domain) => (
+                          <li key={domain.key}>
+                            <strong>{domain.label}</strong>
+                            <span>{promotionMessageCountLabel(domain.messageCount)} · {formatBytes(domain.estimatedBytes)}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : <p className="empty-insights">No parseable sender domains were found in this sample.</p>}
+                  </article>
+                </div>
+              ) : <p className="empty-insights">No old-promotion messages were successfully analyzed in this bounded scan.</p>}
+            </section>
+          )}
           <h3 className="previews-heading">Matching examples</h3>
           {view.summary.messagePreviews.length > 0 ? (
             <div className="preview-table-wrap">

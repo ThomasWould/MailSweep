@@ -38,6 +38,7 @@ public sealed class MailboxScanEngine(TimeProvider? timeProvider = null, Mailbox
         private readonly Dictionary<string, int> membership = new(StringComparer.Ordinal);
         private readonly HashSet<string> attempted = new(StringComparer.Ordinal);
         private readonly List<MailboxMessagePreview> previews = [];
+        private readonly PromotionInsightsAggregator promotionInsights = new();
         private Cohort[] cohorts = [];
         private MailboxScanStatus status = MailboxScanStatus.Running;
         private MailboxScanStage? stage = MailboxScanStage.Enumerating;
@@ -117,7 +118,7 @@ public sealed class MailboxScanEngine(TimeProvider? timeProvider = null, Mailbox
             var summary = status == MailboxScanStatus.Completed
                 ? new MailboxScanSummary(scanId, "bounded-v1", profileCount, progress.Cohorts,
                     membership.Count, attempted.Count, getAttempts, MailboxScanPlan.GetAttemptBudget,
-                    succeeded, bytes, limited, previews.AsReadOnly(), finished.Value)
+                    succeeded, bytes, limited, promotionInsights.Snapshot(), previews.AsReadOnly(), finished.Value)
                 : null;
             return new(progress, summary);
         }
@@ -283,6 +284,8 @@ public sealed class MailboxScanEngine(TimeProvider? timeProvider = null, Mailbox
             }
             if (matches.Count == 0) return;
             bytes = checked(bytes + metadata.EstimatedBytes.Value);
+            if (matches.Contains(MailboxScanCohort.OldPromotions))
+                promotionInsights.Add(metadata.From, metadata.EstimatedBytes.Value);
             previews.Add(new(id, metadata.ThreadId, matches.AsReadOnly(), received,
                 metadata.EstimatedBytes.Value, metadata.From, metadata.Subject));
         }

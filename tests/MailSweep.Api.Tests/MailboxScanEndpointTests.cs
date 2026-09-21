@@ -47,6 +47,8 @@ public sealed class MailboxScanEndpointTests
         AssertNoStore(summaryResponse);
         var summary = await ReadAsync<MailboxScanSummary>(summaryResponse);
         Assert.Equal(123, summary.ProfileMessageCount);
+        Assert.Equal(0, summary.PromotionInsights.AnalyzedMessageCount);
+        Assert.Empty(summary.PromotionInsights.TopSenders);
 
         using var hiddenSummary = await other.GetAsync($"/api/mailbox/scans/{queued.ScanId}/summary");
         Assert.Equal(HttpStatusCode.NotFound, hiddenSummary.StatusCode);
