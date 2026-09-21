@@ -206,9 +206,12 @@ public sealed class MailboxScanEngineTests
     public async Task ReservedPassesHonorPriorityAndHardCap()
     {
         var h = new ScanHarness();
-        h.Source.Cohorts(ScanHarness.Ids("l", 100), ScanHarness.Ids("p", 100), ScanHarness.Ids("u", 100));
+        var promotions = ScanHarness.Ids("p", 100);
+        h.Source.Cohorts(ScanHarness.Ids("l", 100), promotions, ScanHarness.Ids("u", 100));
         var outcome = await h.RunAsync();
-        Assert.Equal(ScanHarness.Ids("l", 60).Concat(ScanHarness.Ids("p", 25)).Concat(ScanHarness.Ids("u", 15)), h.Source.Gets);
+        Assert.Equal(ScanHarness.Ids("l", 60)
+            .Concat(MailboxScanSampling.DistributedOrder(promotions).Take(25))
+            .Concat(ScanHarness.Ids("u", 15)), h.Source.Gets);
         Assert.Equal(new[] { 60, 25, 15 }, outcome.Progress.Cohorts.Select(c => c.EnrichedMessages));
         Assert.Equal(100, outcome.Progress.GetAttemptsUsed);
         Assert.True(outcome.Progress.LimitedByBudget);
@@ -242,6 +245,7 @@ public sealed class MailboxScanEngineTests
         Assert.Equal(2, outcome.Summary.PromotionInsights.AnalyzedMessageCount);
         Assert.Equal(20, outcome.Summary.PromotionInsights.AnalyzedMessageBytes);
         Assert.Equal(2, Assert.Single(outcome.Summary.PromotionInsights.TopSenders).MessageCount);
+        Assert.Equal(h.Source.Gets.Count, h.Source.Gets.Distinct(StringComparer.Ordinal).Count());
         Assert.False(outcome.Progress.LimitedByBudget);
     }
 

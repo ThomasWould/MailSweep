@@ -49,10 +49,14 @@ export interface PromotionInsightRow {
   estimatedBytes: number
 }
 
-export function promotionCoverageLabel(insights: PromotionInsightsSummary): string {
-  const count = numberFormatter.format(insights.analyzedMessageCount)
+export function promotionCoverageLabel(
+  insights: PromotionInsightsSummary,
+  observedCandidateCount: number,
+): string {
+  const analyzed = numberFormatter.format(insights.analyzedMessageCount)
+  const observed = numberFormatter.format(observedCandidateCount)
   const noun = insights.analyzedMessageCount === 1 ? 'message' : 'messages'
-  return `Based on ${count} analyzed promotion ${noun} from this bounded scan.`
+  return `Based on ${analyzed} analyzed promotion ${noun} selected across ${observed} observed old-promotion candidates in this bounded scan.`
 }
 
 export function promotionMessageCountLabel(count: number): string {
