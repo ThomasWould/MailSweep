@@ -214,7 +214,10 @@ public sealed class MailboxScanEngine(TimeProvider? timeProvider = null, Mailbox
             CancellationToken cancellationToken)
         {
             var limit = Math.Min(passLimit, MailboxScanPlan.GetAttemptBudget);
-            foreach (var id in cohorts[index].Ids)
+            var ids = cohorts[index].Query.Cohort == MailboxScanCohort.OldPromotions
+                ? MailboxScanSampling.DistributedOrder(cohorts[index].Ids)
+                : cohorts[index].Ids;
+            foreach (var id in ids)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (getAttempts >= limit) return;

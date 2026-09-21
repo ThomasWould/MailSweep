@@ -60,8 +60,8 @@ const promotionInsights: PromotionInsightsSummary = {
 
 test('promotion coverage wording identifies the bounded analyzed sample', () => {
   assert.equal(
-    promotionCoverageLabel(promotionInsights),
-    'Based on 3 analyzed promotion messages from this bounded scan.',
+    promotionCoverageLabel(promotionInsights, 1_250),
+    'Based on 3 analyzed promotion messages selected across 1,250 observed old-promotion candidates in this bounded scan.',
   )
 })
 

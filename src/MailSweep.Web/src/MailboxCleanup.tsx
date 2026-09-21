@@ -118,6 +118,9 @@ export default function MailboxCleanup({ client, mockScenario, onMockScenarioCha
     enrichedMessages: 0, estimatedMatchingMessageBytes: 0, countComplete: false,
   })
   const promotionInsights = view.kind === 'completed' ? view.summary.promotionInsights : undefined
+  const observedPromotionCandidates = view.kind === 'completed'
+    ? view.summary.cohorts.find(({ cohort }) => cohort === 'oldPromotions')?.observedCandidateCount ?? 0
+    : 0
   const senderInsights = promotionInsights ? promotionSenderRows(promotionInsights) : []
   const domainInsights = promotionInsights ? promotionDomainRows(promotionInsights) : []
 
@@ -233,13 +236,13 @@ export default function MailboxCleanup({ client, mockScenario, onMockScenarioCha
             <section className="promotion-insights" aria-labelledby="promotion-insights-heading">
               <div className="promotion-insights-heading">
                 <div>
-                  <p className="eyebrow">Bounded-scan sample</p>
+                  <p className="eyebrow">Bounded-scan coverage</p>
                   <h3 id="promotion-insights-heading">Promotion Insights</h3>
                 </div>
                 <p>{formatBytes(promotionInsights.analyzedMessageBytes)} analyzed</p>
               </div>
               <p className="promotion-coverage">
-                {promotionCoverageLabel(promotionInsights)} This is not a mailbox-wide sender ranking.
+                {promotionCoverageLabel(promotionInsights, observedPromotionCandidates)} The selection is deterministic, not random or mailbox-wide.
               </p>
               {promotionInsights.analyzedMessageCount > 0 ? (
                 <div className="promotion-rankings">
