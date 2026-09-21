@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Google.Apis.Auth.AspNetCore3;
 using MailSweep.Api.Gmail;
+using MailSweep.Api.Mailbox.Scanning;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -17,7 +18,11 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace MailSweep.Api.Tests;
 
-internal sealed class MailSweepApiFactory(Exception? profileException = null) : WebApplicationFactory<Program>
+internal sealed class MailSweepApiFactory(
+    Exception? profileException = null,
+    string environmentName = "Testing",
+    GmailMetadataProbeResponse? metadataProbeResponse = null,
+    Func<IMailboxScanSource>? scanSourceFactory = null) : WebApplicationFactory<Program>
 {
     private int profileCallCount;
     public int ProfileCallCount => profileCallCount;
@@ -30,7 +35,7 @@ internal sealed class MailSweepApiFactory(Exception? profileException = null) : 
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(environmentName);
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
@@ -49,6 +54,14 @@ internal sealed class MailSweepApiFactory(Exception? profileException = null) : 
             services.RemoveAll<IGmailProfileService>();
             services.AddScoped<IGmailProfileService>(_ => new FakeGmailProfileService(
                 profileException, () => Interlocked.Increment(ref profileCallCount)));
+            services.RemoveAll<IGmailMailboxScanSourceFactory>();
+            services.AddScoped<IGmailMailboxScanSourceFactory>(_ => new FakeGmailMailboxScanSourceFactory(
+                scanSourceFactory ?? (() => new FakeScanSource())));
+            if (metadataProbeResponse is not null)
+            {
+                services.RemoveAll<IGmailMetadataProbe>();
+                services.AddScoped<IGmailMetadataProbe>(_ => new FakeGmailMetadataProbe(metadataProbeResponse));
+            }
             services.PostConfigure<OpenIdConnectOptions>(
                 GoogleOpenIdConnectDefaults.AuthenticationScheme,
                 options => options.ConfigurationManager =
@@ -60,6 +73,22 @@ internal sealed class MailSweepApiFactory(Exception? profileException = null) : 
                             Issuer = "https://accounts.google.com"
                         }));
         });
+    }
+
+    private sealed class FakeGmailMetadataProbe(GmailMetadataProbeResponse response) : IGmailMetadataProbe
+    {
+        public Task<GmailMetadataProbeResponse> ProbeAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(response);
+    }
+
+    private sealed class FakeGmailMailboxScanSourceFactory(Func<IMailboxScanSource> create) :
+        IGmailMailboxScanSourceFactory
+    {
+        public Task<IMailboxScanSource> CreateAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(create());
+        }
     }
 
     private sealed class FakeGmailProfileService(Exception? failure, Action onCall) : IGmailProfileService
@@ -90,7 +119,10 @@ internal sealed class TestAuthenticationHandler(
         }
 
         var identity = new ClaimsIdentity(
-            [new Claim(ClaimTypes.Email, email.ToString())], Scheme.Name);
+            [
+                new Claim(ClaimTypes.NameIdentifier, email.ToString()),
+                new Claim(ClaimTypes.Email, email.ToString())
+            ], Scheme.Name);
         var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name);
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }

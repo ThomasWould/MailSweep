@@ -48,7 +48,9 @@ h2 {
 }
 
 .panel,
-.stat-card {
+.stat-card,
+.cohort-intro,
+.cohort-result {
   border: 1px solid #dce6e1;
   border-radius: 16px;
   background: #fff;
@@ -136,6 +138,366 @@ button:disabled {
   margin-top: 52px;
 }
 
+.cleanup {
+  margin-top: 72px;
+  padding-top: 52px;
+  border-top: 1px solid #dce6e1;
+}
+
+.cleanup-heading-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.cleanup-heading-row .section-heading {
+  max-width: 640px;
+}
+
+.safety-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 15px 18px;
+  border: 1px solid #b8d2c7;
+  border-radius: 12px;
+  background: #eef7f2;
+  color: #244d3f;
+}
+
+.safety-note span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: #d1eadf;
+  font-weight: 700;
+}
+
+.mock-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px dashed #a5b7b0;
+  border-radius: 10px;
+  color: #526660;
+  font-size: 0.85rem;
+}
+
+.mock-controls label {
+  color: #293a33;
+  font-weight: 700;
+}
+
+.mock-controls select {
+  padding: 8px 30px 8px 10px;
+  border: 1px solid #b8c8c1;
+  border-radius: 8px;
+  background: #fff;
+  color: #293a33;
+  font: inherit;
+}
+
+.mock-controls select:focus-visible {
+  outline: 3px solid #77bca2;
+  outline-offset: 2px;
+}
+
+.cohort-intro-grid,
+.cohort-results-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.cohort-intro,
+.cohort-result {
+  padding: 22px;
+}
+
+.cohort-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 24px;
+  place-items: center;
+  border-radius: 9px;
+  background: #eef7f2;
+  color: #14664e;
+  font-weight: 700;
+}
+
+.cohort-intro h3,
+.cohort-result h3,
+.scan-status h3,
+.coverage-note h3,
+.failure-panel h3,
+.previews-heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.cohort-intro p {
+  margin-top: 10px;
+  color: #60716c;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.scan-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding: 22px;
+  border: 1px solid #dce6e1;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.scan-status > div {
+  flex: 1;
+}
+
+.scan-status p {
+  margin-top: 7px;
+  color: #60716c;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.activity-dot,
+.status-symbol {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: #dceee7;
+  color: #14664e;
+  font-weight: 700;
+}
+
+.activity-dot::after {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #14664e;
+  content: '';
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.25; transform: scale(0.75); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-dot::after { animation: none; }
+}
+
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 20px 0 0;
+  overflow: hidden;
+  border: 1px solid #dce6e1;
+  border-radius: 12px;
+  background: #dce6e1;
+}
+
+.progress-grid > div {
+  padding: 17px;
+  background: #fff;
+}
+
+.progress-grid dt,
+.cohort-result dt {
+  color: #60716c;
+  font-size: 0.78rem;
+}
+
+.progress-grid dd,
+.cohort-result dd {
+  margin: 7px 0 0;
+  font-weight: 700;
+}
+
+.cohort-result-heading {
+  min-height: 48px;
+}
+
+.cohort-result-heading span {
+  display: block;
+  margin-top: 5px;
+  color: #60716c;
+  font-size: 0.75rem;
+}
+
+.candidate-count {
+  margin-top: 22px;
+  color: #1d3029;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.candidate-label {
+  margin-top: 4px;
+  color: #60716c;
+  font-size: 0.78rem;
+}
+
+.cohort-result dl {
+  display: flex;
+  gap: 24px;
+  margin: 24px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid #e4ece8;
+}
+
+.results {
+  margin-top: 28px;
+}
+
+.result-summary {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(280px, 1.3fr);
+  gap: 28px;
+  align-items: center;
+  padding: 26px;
+  border-radius: 14px;
+  background: #183c31;
+  color: #fff;
+}
+
+.result-summary .eyebrow {
+  color: #9dd9c1;
+}
+
+.size-total {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.result-summary > p {
+  color: #dcece6;
+  line-height: 1.55;
+}
+
+.coverage-note {
+  margin-top: 18px;
+  padding: 22px;
+  border-left: 4px solid #77bca2;
+  background: #eef7f2;
+}
+
+.coverage-note p,
+.failure-panel p {
+  margin-top: 9px;
+  color: #526660;
+  line-height: 1.55;
+}
+
+.previews-heading {
+  margin-top: 36px;
+}
+
+.preview-table-wrap {
+  margin-top: 14px;
+  overflow-x: auto;
+  border: 1px solid #dce6e1;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.preview-table th,
+.preview-table td {
+  padding: 16px;
+  border-bottom: 1px solid #e4ece8;
+  vertical-align: top;
+}
+
+.preview-table th {
+  color: #60716c;
+  background: #f7faf8;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.preview-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.sender,
+.subject {
+  display: block;
+  min-width: 210px;
+}
+
+.sender {
+  font-weight: 650;
+}
+
+.subject {
+  margin-top: 5px;
+  color: #60716c;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 7px;
+  border: 1px solid #b8d2c7;
+  border-radius: 999px;
+  color: #14664e;
+  background: #eef7f2;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.analyze-again,
+.outcome-actions,
+.failure-panel button {
+  margin-top: 22px;
+}
+
+.empty-results {
+  margin-top: 14px;
+  padding: 22px;
+  border: 1px solid #dce6e1;
+  border-radius: 12px;
+  color: #60716c;
+  background: #fff;
+}
+
+.failure-panel {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid #ebc5c0;
+  border-radius: 14px;
+  background: #fff8f7;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -201,5 +563,23 @@ button.text-button:hover:not(:disabled) {
   .profile-error {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .cleanup-heading-row,
+  .scan-status,
+  .mock-controls {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cohort-intro-grid,
+  .cohort-results-grid,
+  .progress-grid,
+  .result-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .scan-status button {
+    width: 100%;
   }
 }
