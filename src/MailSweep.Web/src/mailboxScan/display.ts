@@ -1,4 +1,9 @@
-import type { CohortEnumerationStatus, MailboxScanCohort, MailboxScanCohortResult } from './contracts.ts'
+import type {
+  CohortEnumerationStatus,
+  MailboxScanCohort,
+  MailboxScanCohortResult,
+  PromotionInsightsSummary,
+} from './contracts.ts'
 
 const numberFormatter = new Intl.NumberFormat()
 const byteFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })
@@ -34,4 +39,50 @@ export function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
   return `${byteFormatter.format(bytes / (1024 ** unitIndex))} ${units[unitIndex]}`
+}
+
+export interface PromotionInsightRow {
+  key: string
+  label: string
+  detail?: string
+  messageCount: number
+  estimatedBytes: number
+}
+
+export function promotionCoverageLabel(insights: PromotionInsightsSummary): string {
+  const count = numberFormatter.format(insights.analyzedMessageCount)
+  const noun = insights.analyzedMessageCount === 1 ? 'message' : 'messages'
+  return `Based on ${count} analyzed promotion ${noun} from this bounded scan.`
+}
+
+export function promotionMessageCountLabel(count: number): string {
+  return `${numberFormatter.format(count)} ${count === 1 ? 'message' : 'messages'}`
+}
+
+export function promotionSenderRows(insights: PromotionInsightsSummary): PromotionInsightRow[] {
+  const rows: PromotionInsightRow[] = insights.topSenders.map((sender) => ({
+    key: sender.emailAddress,
+    label: sender.emailAddress,
+    detail: sender.domain,
+    messageCount: sender.messageCount,
+    estimatedBytes: sender.estimatedBytes,
+  }))
+  if (insights.unknownSenderMessageCount > 0) {
+    rows.push({
+      key: 'unknown-sender',
+      label: 'Unknown sender',
+      messageCount: insights.unknownSenderMessageCount,
+      estimatedBytes: insights.unknownSenderMessageBytes,
+    })
+  }
+  return rows
+}
+
+export function promotionDomainRows(insights: PromotionInsightsSummary): PromotionInsightRow[] {
+  return insights.topDomains.map((domain) => ({
+    key: domain.domain,
+    label: domain.domain,
+    messageCount: domain.messageCount,
+    estimatedBytes: domain.estimatedBytes,
+  }))
 }

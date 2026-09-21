@@ -406,6 +406,88 @@ button:disabled {
   line-height: 1.55;
 }
 
+.promotion-insights {
+  margin-top: 28px;
+  padding: 24px;
+  border: 1px solid #dce6e1;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.promotion-insights-heading {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.promotion-insights-heading > p {
+  color: #406158;
+  font-weight: 650;
+}
+
+.promotion-coverage,
+.empty-insights {
+  margin-top: 10px;
+  color: #526660;
+  line-height: 1.5;
+}
+
+.promotion-rankings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 22px;
+}
+
+.promotion-rankings article {
+  min-width: 0;
+}
+
+.insight-list {
+  counter-reset: insight-rank;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.insight-list li {
+  counter-increment: insight-rank;
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 11px 0;
+  border-bottom: 1px solid #e4ece8;
+}
+
+.insight-list li::before {
+  content: counter(insight-rank) ".";
+  color: #81928c;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.insight-list li:last-child {
+  border-bottom: 0;
+}
+
+.insight-list strong,
+.insight-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.insight-list small,
+.insight-list li > span:last-child {
+  color: #60716c;
+  font-size: 0.78rem;
+}
+
+.insight-list li > span:last-child {
+  flex: 0 0 auto;
+}
+
 .previews-heading {
   margin-top: 36px;
 }
@@ -575,7 +657,8 @@ button.text-button:hover:not(:disabled) {
   .cohort-intro-grid,
   .cohort-results-grid,
   .progress-grid,
-  .result-summary {
+  .result-summary,
+  .promotion-rankings {
     grid-template-columns: 1fr;
   }
 

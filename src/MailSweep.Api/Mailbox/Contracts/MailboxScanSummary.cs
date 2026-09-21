@@ -12,5 +12,6 @@ public sealed record MailboxScanSummary(
     int GetSucceeded,
     long EstimatedMatchingMessageBytes,
     bool LimitedByBudget,
+    PromotionInsightsSummary PromotionInsights,
     IReadOnlyList<MailboxMessagePreview> MessagePreviews,
     DateTimeOffset CompletedAt);

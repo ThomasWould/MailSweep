@@ -65,6 +65,22 @@ function summary(cohorts: MailboxScanCohortResult[], limitedByBudget: boolean): 
     getSucceeded: 64,
     estimatedMatchingMessageBytes: 1_478_700_000,
     limitedByBudget,
+    promotionInsights: {
+      analyzedMessageCount: 20,
+      analyzedMessageBytes: 12_400_000,
+      unknownSenderMessageCount: 3,
+      unknownSenderMessageBytes: 1_250_000,
+      topSenders: [
+        { emailAddress: 'offers@example.com', domain: 'example.com', messageCount: 8, estimatedBytes: 4_900_000 },
+        { emailAddress: 'hello@example.org', domain: 'example.org', messageCount: 5, estimatedBytes: 3_100_000 },
+        { emailAddress: 'news@updates.test', domain: 'updates.test', messageCount: 4, estimatedBytes: 3_150_000 },
+      ],
+      topDomains: [
+        { domain: 'example.com', messageCount: 8, estimatedBytes: 4_900_000 },
+        { domain: 'example.org', messageCount: 5, estimatedBytes: 3_100_000 },
+        { domain: 'updates.test', messageCount: 4, estimatedBytes: 3_150_000 },
+      ],
+    },
     messagePreviews: previews,
     completedAt: '2026-09-17T16:02:18Z',
   }

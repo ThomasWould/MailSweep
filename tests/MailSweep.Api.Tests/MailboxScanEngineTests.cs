@@ -239,6 +239,9 @@ public sealed class MailboxScanEngineTests
         Assert.Equal(30, outcome.Summary!.EstimatedMatchingMessageBytes);
         Assert.All(outcome.Progress.Cohorts, c => { Assert.Equal(2, c.EnrichedMessages); Assert.Equal(20, c.EstimatedMatchingMessageBytes); });
         Assert.All(outcome.Summary.MessagePreviews, p => Assert.Equal(2, p.MatchingCohorts.Count));
+        Assert.Equal(2, outcome.Summary.PromotionInsights.AnalyzedMessageCount);
+        Assert.Equal(20, outcome.Summary.PromotionInsights.AnalyzedMessageBytes);
+        Assert.Equal(2, Assert.Single(outcome.Summary.PromotionInsights.TopSenders).MessageCount);
         Assert.False(outcome.Progress.LimitedByBudget);
     }
 

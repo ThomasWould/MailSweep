@@ -42,6 +42,28 @@ export interface MailboxMessagePreview {
   subject: string | null
 }
 
+export interface PromotionSenderInsight {
+  emailAddress: string
+  domain: string
+  messageCount: number
+  estimatedBytes: number
+}
+
+export interface PromotionDomainInsight {
+  domain: string
+  messageCount: number
+  estimatedBytes: number
+}
+
+export interface PromotionInsightsSummary {
+  analyzedMessageCount: number
+  analyzedMessageBytes: number
+  unknownSenderMessageCount: number
+  unknownSenderMessageBytes: number
+  topSenders: PromotionSenderInsight[]
+  topDomains: PromotionDomainInsight[]
+}
+
 export interface MailboxScanSummary {
   scanId: string
   ruleVersion: string
@@ -54,6 +76,7 @@ export interface MailboxScanSummary {
   getSucceeded: number
   estimatedMatchingMessageBytes: number
   limitedByBudget: boolean
+  promotionInsights: PromotionInsightsSummary
   messagePreviews: MailboxMessagePreview[]
   completedAt: string
 }
