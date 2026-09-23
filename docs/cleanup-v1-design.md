@@ -289,7 +289,7 @@ Gmail does not provide a conditional query-and-mutate transaction or an ETag pre
 
 ### Execution
 
-- A `2xx` from `batchModify` completes the plan for the frozen count.
+- A `2xx` from `batchModify` completes the plan for the frozen count without a reconciliation read. V1 reconciles only an ambiguous dispatched outcome. Always reconciling successful batches remains a possible later hardening measure if live behavior warrants its extra requests and quota cost.
 - Authentication or permission failure stops immediately with a safe reconnect/enable-cleanup state.
 - A definite invalid request stops without retry and retains no raw Gmail error detail.
 - A timeout, connection loss, 429, rate-limit 403, or 5xx after dispatch has an ambiguous outcome. Adding `TRASH` is idempotent, so retrying does not permanently delete or duplicate a message.
@@ -401,7 +401,6 @@ Before live mutation, add a development-only adapter probe against one sacrifici
 - Confirm the 100-message limit after observing real exact-sender counts. Raising it requires a new safety review; it must never inherit Gmail's 1,000-ID maximum automatically.
 - Validate Gmail's exact behavior for quoted `from:` searches and the accepted V1 address grammar. Metadata equality remains mandatory.
 - Validate `batchModify` + `TRASH` equivalence and idempotency on the sacrificial account because the method documentation describes label modification rather than a dedicated Trash operation.
-- Decide whether production should reconcile every successful batch or only ambiguous outcomes. Always reconciling improves certainty but can add up to 2,000 quota units and roughly 100 metadata calls.
 - Confirm how `RequireScopesAsync` updates the authentication ticket and how previously granted `gmail.modify` behaves after logout/reconnect. The app cannot revoke only one scope from a combined Google grant.
 - Complete the restricted-scope verification and security assessment analysis before production use.
 - Decide deployment constraints. In-memory plans require sticky single-instance routing; multi-instance execution needs a durable, encrypted, compare-and-swap plan store and is outside V1.
